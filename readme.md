@@ -6,7 +6,7 @@
             </a>
             <p>
                 <a href = 'https://space.bilibili.com/214442500'>
-                    <img title = 'Check out Bilibili' src = 'https://custom-icon-badges.herokuapp.com/badge/BiliBili-D15E9B.svg?color=%23FB7299&label=今晚有宵夜吗&logo=bilibili&logoColor=white&style=for-the-badge&labelColor=%23F25D8E'/>
+                    <img title = 'Check out Bilibili' src = 'https://custom-icon-badges.herokuapp.com/badge/BiliBili-D15E9B.svg?color=%23FB7299&label=%E4%BB%8A%E6%99%9A%E6%9C%89%E5%AE%B5%E5%A4%9C%E5%90%97&logo=bilibili&logoColor=white&style=for-the-badge&labelColor=%23F25D8E'/>
                 </a>
             </p>
         </div>
