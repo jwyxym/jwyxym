@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   mirror:
-    runs-on: debian-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
