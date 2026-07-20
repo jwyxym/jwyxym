@@ -16,6 +16,6 @@
         />
     </div>
     <div>
-        <img src = 'https://kayan-github-profile-projects-featu.vercel.app/api/top-langs/?username=jwyxym&layout=compact&hide=lua&theme=transparent'/>
+        <img src = 'https://github-stats-extended.vercel.app/api/top-langs/?username=jwyxym&layout=compact&hide=lua&theme=transparent&hide_forks=true'/>
     </div>
 </div>
