@@ -21,7 +21,7 @@ inputs:
     description: file path
     required: true
   content_type:
-    description: ContentType (default: application/octet-stream)
+    description: content_type (default application/octet-stream)
     required: false
     default: application/octet-stream
 
@@ -43,7 +43,7 @@ runs:
     - name: Upload to Bucket
       shell: bash
       run: |
-        curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/s3.py
+        curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/s3/s3.py
         python s3.py \
           "${{ inputs.s3_endpoint }}" \
           "${{ inputs.access_key }}" \
