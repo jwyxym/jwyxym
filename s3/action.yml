@@ -44,6 +44,7 @@ runs:
       shell: bash
       run: |
         curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/s3/s3.py
+        source .venv/bin/activate
         python s3.py \
           "${{ inputs.s3_endpoint }}" \
           "${{ inputs.access_key }}" \
