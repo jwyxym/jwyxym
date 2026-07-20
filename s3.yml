@@ -1,0 +1,54 @@
+name: Upload to S3 bucket
+description: Install boto3 and upload artifacts via .ci/update_ygopro3.py
+
+inputs:
+  s3_endpoint:
+    description: S3 endpoint
+    required: true
+  access_key:
+    description: S3 access key
+    required: true
+  secret_key:
+    description: S3 secret key
+    required: true
+  bucket:
+    description: target bucket
+    required: true
+  file_name:
+    description: file name
+    required: true
+  file_path:
+    description: file path
+    required: true
+  content_type:
+    description: ContentType (default: application/octet-stream)
+    required: false
+    default: application/octet-stream
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Create venv and install deps
+      shell: bash
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install --quiet boto3
+
+    - name: Upload to Bucket
+      shell: bash
+      run: |
+        curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/s3.py
+        python s3.py \
+          "${{ inputs.s3_endpoint }}" \
+          "${{ inputs.access_key }}" \
+          "${{ inputs.secret_key }}" \
+          "${{ inputs.bucket }}" \
+          "${{ inputs.file_name }}" \
+          "${{ inputs.file_path }}" \
+          "${{ inputs.content_type }}"

@@ -25,5 +25,5 @@ with open(file_path, "rb") as file:
         Bucket=bucket,
         Key=key,
         Body=file,
-        ContentType="application/octet-stream"
+        ContentType=args[6]
     )
