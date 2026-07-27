@@ -69,36 +69,12 @@ jobs:
           git ls-remote "$TARGET_REPO" 'refs/heads/*' 'refs/tags/*' | awk '{print $1 " " $2}' | sort > /tmp/remote.refs
 
           if cmp -s /tmp/local.refs /tmp/remote.refs; then
-            echo "repo_changed=false" >> $GITHUB_OUTPUT
+            echo "No changes to mirror."
             exit 0
           fi
 
-          echo "repo_changed=true" >> $GITHUB_OUTPUT
+          echo "Changes detected, pushing mirror."
           git push --mirror
-
-      - name: Install Rust
-        if: ${{ matrix.source_secret == 'HDARTS_FROM' && steps.check.outputs.repo_changed == 'true' }}
-        uses: dtolnay/rust-toolchain@master
-        with:
-          toolchain: 1.95.0
-
-      - name: Restore mirror cache
-        if: ${{ matrix.source_secret == 'HDARTS_FROM' && steps.check.outputs.repo_changed == 'true' }}
-        uses: actions/cache/restore@v4
-        with:
-          path: GetDeck/core-wasm/target/release
-          key: GetDeck
-
-      - name: Hashing hdarts
-        if: ${{ matrix.source_secret == 'HDARTS_FROM' && steps.check.outputs.repo_changed == 'true' }}
-        run: |
-          git clone git@github.com:jwyxym/GetDeck.git --depth 1
-          cd GetDeck/core-wasm
-          wget https://github.com/mycard/ygopro-database/raw/refs/heads/master/locales/zh-CN/cards.cdb
-          cargo run --release ../../repo.git/arts cards.cdb ../public/card_data
-          git add ../public/card_data
-          git commit -m "update card_data"
-          git push
 
       - name: Clean cached remotes
         run: |
@@ -110,13 +86,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh cache delete "mirror-${{ matrix.name }}" || true
-
-      - name: Save rust cache
-        if: ${{ matrix.source_secret == 'HDARTS_FROM' && steps.check.outputs.repo_changed == 'true' }}
-        uses: actions/cache/save@v4
-        with:
-          path: GetDeck/core-wasm/target/release
-          key: GetDeck
 
       - name: Save mirror cache
         uses: actions/cache/save@v4
