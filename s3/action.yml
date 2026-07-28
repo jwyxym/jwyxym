@@ -24,6 +24,10 @@ inputs:
     description: content_type (default application/octet-stream)
     required: false
     default: application/octet-stream
+  proxy:
+    description: proxy url
+    required: false
+    default: ""
 
 runs:
   using: composite
@@ -43,6 +47,18 @@ runs:
     - name: Upload to Bucket
       shell: bash
       run: |
+        proxy="${{ inputs.proxy }}"
+        if [[ "$proxy" =~ ^https?:// ]]; then
+          export HTTP_PROXY="$proxy"
+          export HTTPS_PROXY="$proxy"
+          export http_proxy="$proxy"
+          export https_proxy="$proxy"
+        elif [[ "$proxy" =~ ^socks5:// ]]; then
+          export HTTP_PROXY="$proxy"
+          export HTTPS_PROXY="$proxy"
+          export http_proxy="$proxy"
+          export https_proxy="$proxy"
+        fi
         curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/s3/s3.py
         source .venv/bin/activate
         python s3.py \
