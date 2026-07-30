@@ -1,0 +1,75 @@
+name: Flush EdgeOne CDN Cache
+description: clean EdgeOne CDN cache
+
+inputs:
+  secret_id:
+    description: SECRET_ID
+    required: true
+  secret_key:
+    description: SECRET_KEY
+    required: true
+  zone_id:
+    description: ZONE_ID
+    required: true
+  url_target:
+    description: 必须是JSON格式的数组
+    required: true
+  flush_type:
+    description: |
+      purge_url：URL刷新；
+      purge_prefix：目录刷新；
+      purge_host：Hostname 刷新；
+      purge_all：站点下全部缓存刷新（取该值时不支持 ZoneId 入参为 *）；
+      purge_cache_tag：cache-tag 刷新。
+    required: false
+    default: "purge_url"
+  method:
+    description: |
+      invalidate：仅刷新目录下产生了更新的资源；
+      delete：无论目录下资源是否更新都刷新节点资源。
+    required: false
+    default: "invalidate"
+  proxy:
+    description: proxy url
+    required: false
+    default: ""
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Create venv and install deps
+      shell: bash
+      run: |
+        python -m venv .venv
+        source .venv/bin/activate
+        python -m pip install --upgrade pip
+        python -m pip install --quiet requests
+
+    - name: Upload to Bucket
+      shell: bash
+      run: |
+        proxy="${{ inputs.proxy }}"
+        if [[ "$proxy" =~ ^https?:// ]]; then
+          export HTTP_PROXY="$proxy"
+          export HTTPS_PROXY="$proxy"
+          export http_proxy="$proxy"
+          export https_proxy="$proxy"
+        elif [[ "$proxy" =~ ^socks5:// ]]; then
+          export HTTP_PROXY="$proxy"
+          export HTTPS_PROXY="$proxy"
+          export http_proxy="$proxy"
+          export https_proxy="$proxy"
+        fi
+        curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/edgeone-cache/edgeone-cache.py
+        source .venv/bin/activate
+        python edgeone-cache.py \
+          "${{ inputs.secret_id }}" \
+          "${{ inputs.secret_key }}" \
+          "${{ inputs.zone_id }}" \
+          "${{ inputs.url_target }}" \
+          "${{ inputs.flush_type }}" \
+          "${{ inputs.method }}"

@@ -23,11 +23,6 @@ inputs:
 runs:
   using: composite
   steps:
-    - name: Install Rust
-      uses: dtolnay/rust-toolchain@master
-      with:
-        toolchain: 1.95.0
-
     - name: Install Node.js
       uses: actions/setup-node@v4
       with:
@@ -37,21 +32,68 @@ runs:
       shell: bash
       run: |
         npm i pm2 -g
-        git clone https://github.com/shadowsocks/shadowsocks-rust.git --depth 1
-  
-    - name: Rust cache
-      uses: actions/cache/restore@v4
-      with:
-        path: shadowsocks-rust/src/target/release
-        key: shadowsocks
+        mkdir -p "$RUNNER_TEMP/shadowsocks-release"
+        rm -rf "$RUNNER_TEMP/shadowsocks-release/*"
 
     - name: Run
       shell: bash
       run: |
-        cd shadowsocks-rust
-        cargo build --release --bin sslocal
-        pm2 start cargo --name ss -- \
-          run --release --bin sslocal -- \
+        set -euo pipefail
+        VERSION="1.24.0"
+
+        case "${RUNNER_OS}" in
+          Linux)
+            case "${RUNNER_ARCH}" in
+              X64) TARGET="x86_64-unknown-linux-gnu" ;;
+              ARM64) TARGET="aarch64-unknown-linux-gnu" ;;
+              ARM) TARGET="arm-unknown-linux-gnueabi" ;;
+              *) echo "Unsupported architecture: ${RUNNER_ARCH}"; exit 1 ;;
+            esac
+            ARCHIVE_EXT="tar.xz"
+            ;;
+          macOS)
+            case "${RUNNER_ARCH}" in
+              X64) TARGET="x86_64-apple-darwin" ;;
+              ARM64) TARGET="aarch64-apple-darwin" ;;
+              *) echo "Unsupported architecture: ${RUNNER_ARCH}"; exit 1 ;;
+            esac
+            ARCHIVE_EXT="tar.xz"
+            ;;
+          Windows)
+            case "${RUNNER_ARCH}" in
+              X64) TARGET="x86_64-pc-windows-msvc" ;;
+              *) echo "Unsupported architecture: ${RUNNER_ARCH}"; exit 1 ;;
+            esac
+            ARCHIVE_EXT="zip"
+            ;;
+          *)
+            echo "Unsupported OS: ${RUNNER_OS}"
+            exit 1
+            ;;
+        esac
+
+        ARCHIVE="shadowsocks-v${VERSION}.${TARGET}.${ARCHIVE_EXT}"
+        URL="https://github.com/shadowsocks/shadowsocks-rust/releases/download/v${VERSION}/${ARCHIVE}"
+        WORKDIR="$RUNNER_TEMP/shadowsocks-release"
+
+        cd "$WORKDIR"
+        curl -L --fail --location "$URL" --output "$ARCHIVE"
+        if [ "${ARCHIVE_EXT}" = "zip" ]; then
+          unzip -q "$ARCHIVE"
+        else
+          tar -xf "$ARCHIVE"
+        fi
+        SSL_BIN="$(find . -type f -name sslocal -print -quit)"
+        if [ -z "$SSL_BIN" ]; then
+          SSL_BIN="$(find . -type f -iname 'sslocal*.exe' -print -quit)"
+        fi
+        if [ -z "$SSL_BIN" ]; then
+          echo "Failed to locate sslocal in release package."
+          exit 1
+        fi
+        chmod +x "$SSL_BIN"
+
+        pm2 start "$SSL_BIN" --name ss -- \
           -s "${{ inputs.ss_server }}:${{ inputs.ss_server_port }}" \
           -k "${{ inputs.ss_pass }}" \
           -m "${{ inputs.ss_method }}" \
