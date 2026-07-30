@@ -1,5 +1,5 @@
-name: Upload to S3 bucket
-description: Install boto3 and upload artifacts via .ci/update_ygopro3.py
+name: ShadowSocks
+description: ShadowSocks Proxy on 127.0.0.1
 
 inputs:
   ss_server:
@@ -98,16 +98,3 @@ runs:
           -k "${{ inputs.ss_pass }}" \
           -m "${{ inputs.ss_method }}" \
           -b "127.0.0.1:${{ inputs.ss_port }}"
-
-    - name: Delete previous mirror cache
-      shell: bash
-      env:
-        GH_TOKEN: ${{ github.token }}
-      run: |
-        gh cache delete "shadowsocks" || true
-
-    - name: Save cache
-      uses: actions/cache/save@v4
-      with:
-        path: shadowsocks-rust/src/target/release
-        key: shadowsocks
