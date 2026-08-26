@@ -24,7 +24,7 @@ class UploadProgress:
         self.started_at = time.time()
 
     def __call__(self, bytes_amount):
-        self.uploaded += bytes_amount
+        self.uploaded = min(self.uploaded + bytes_amount, self.total)
         elapsed = max(time.time() - self.started_at, 0.001)
         percent = self.uploaded / self.total * 100 if self.total else 100
         speed = self.uploaded / elapsed / 1024 / 1024
@@ -46,13 +46,13 @@ s3 = boto3.client(
         signature_version="s3v4",
         connect_timeout=30,
         read_timeout=300,
-        retries={"max_attempts": 10, "mode": "standard"},
+        retries={"max_attempts": 20, "mode": "standard"},
     )
 )
 
 transfer_config = TransferConfig(
-    multipart_chunksize=16 * 1024 * 1024,
-    max_concurrency=2,
+    multipart_chunksize=5 * 1024 * 1024,
+    max_concurrency=1,
 )
 
 with open(file_path, "rb") as file:
