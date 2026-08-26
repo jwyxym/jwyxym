@@ -3,6 +3,7 @@ import os
 import time
 import boto3
 from botocore.config import Config
+from boto3.s3.transfer import TransferConfig
 
 args = sys.argv[1:]
 
@@ -41,7 +42,17 @@ s3 = boto3.client(
     aws_access_key_id=access_key,
     aws_secret_access_key=secret_key,
     region_name="us-east-1",
-    config=Config(signature_version="s3v4")
+    config=Config(
+        signature_version="s3v4",
+        connect_timeout=30,
+        read_timeout=300,
+        retries={"max_attempts": 10, "mode": "standard"},
+    )
+)
+
+transfer_config = TransferConfig(
+    multipart_chunksize=16 * 1024 * 1024,
+    max_concurrency=2,
 )
 
 with open(file_path, "rb") as file:
@@ -50,7 +61,8 @@ with open(file_path, "rb") as file:
         bucket,
         key,
         ExtraArgs={"ContentType": content_type},
-        Callback=UploadProgress(file_path)
+        Callback=UploadProgress(file_path),
+        Config=transfer_config,
     )
 
 print("\nUpload complete.")
