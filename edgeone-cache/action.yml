@@ -64,9 +64,8 @@ runs:
           export http_proxy="$proxy"
           export https_proxy="$proxy"
         fi
-        curl -O https://raw.githubusercontent.com/jwyxym/jwyxym/refs/heads/master/edgeone-cache/edgeone-cache.py
         source .venv/bin/activate
-        python edgeone-cache.py \
+        python "$GITHUB_ACTION_PATH/edgeone-cache.py" \
           "${{ inputs.secret_id }}" \
           "${{ inputs.secret_key }}" \
           "${{ inputs.zone_id }}" \
