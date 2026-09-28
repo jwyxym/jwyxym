@@ -51,6 +51,8 @@ runs:
 
     - name: Upload to Bucket
       shell: bash
+      env:
+        URL_TARGET: ${{ inputs.url_target }}
       run: |
         proxy="${{ inputs.proxy }}"
         if [[ "$proxy" =~ ^https?:// ]]; then
@@ -69,6 +71,6 @@ runs:
           "${{ inputs.secret_id }}" \
           "${{ inputs.secret_key }}" \
           "${{ inputs.zone_id }}" \
-          "${{ inputs.url_target }}" \
+          "$URL_TARGET" \
           "${{ inputs.flush_type }}" \
           "${{ inputs.method }}"
