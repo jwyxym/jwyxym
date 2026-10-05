@@ -4,6 +4,7 @@ import time
 import boto3
 from botocore.config import Config
 from boto3.s3.transfer import TransferConfig
+from botocore.exceptions import ClientError
 
 args = sys.argv[1:]
 
@@ -56,14 +57,19 @@ transfer_config = TransferConfig(
     max_concurrency=1,
 )
 
-with open(file_path, "rb") as file:
-    s3.upload_fileobj(
-        file,
-        bucket,
-        key,
-        ExtraArgs={"ContentType": content_type},
-        Callback=UploadProgress(file_path),
-        Config=transfer_config,
-    )
+try:
+    with open(file_path, "rb") as file:
+        s3.upload_fileobj(
+            file,
+            bucket,
+            key,
+            ExtraArgs={"ContentType": content_type},
+            Callback=UploadProgress(file_path),
+            Config=transfer_config,
+        )
 
-print("\nUpload complete.")
+    print("\nUpload complete.")
+except ClientError as exc:
+    print("\nS3 error:", exc.response.get("Error"), flush=True)
+    print("Response metadata:", exc.response.get("ResponseMetadata"), flush=True)
+    raise
