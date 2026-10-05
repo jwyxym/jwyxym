@@ -49,12 +49,13 @@ s3 = boto3.client(
         connect_timeout=30,
         read_timeout=300,
         retries={"max_attempts": 20, "mode": "standard"},
+        request_checksum_calculation="when_required",
     )
 )
 
 transfer_config = TransferConfig(
-    multipart_chunksize=5 * 1024 * 1024,
-    max_concurrency=1,
+	multipart_threshold=os.path.getsize(file_path) + 1,
+	max_concurrency=1,
 )
 
 try:
