@@ -44,6 +44,7 @@ s3 = boto3.client(
     region_name="us-east-1",
     config=Config(
         signature_version="s3v4",
+        s3={"addressing_style": "path"},
         connect_timeout=30,
         read_timeout=300,
         retries={"max_attempts": 20, "mode": "standard"},
