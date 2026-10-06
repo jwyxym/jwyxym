@@ -49,7 +49,7 @@ runs:
         python -m pip install --upgrade pip
         python -m pip install --quiet requests
 
-    - name: Upload to Bucket
+    - name: Submit cache purge
       shell: bash
       env:
         URL_TARGET: ${{ inputs.url_target }}
