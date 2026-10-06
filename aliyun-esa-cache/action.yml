@@ -1,0 +1,92 @@
+name: Flush Aliyun ESA CDN Cache
+description: 使用阿里云 ESA PurgeCaches API 提交缓存刷新任务
+
+inputs:
+  access_key_id:
+    description: 阿里云 AccessKey ID，需要 esa:PurgeCaches 权限
+    required: true
+  access_key_secret:
+    description: 阿里云 AccessKey Secret
+    required: true
+  security_token:
+    description: 使用 STS 临时凭证时填写 SecurityToken
+    required: false
+    default: ""
+  site_id:
+    description: ESA 站点 ID
+    required: true
+  region_id:
+    description: ESA API 地域，支持 cn-hangzhou 和 ap-southeast-1
+    required: false
+    default: cn-hangzhou
+  url_target:
+    description: JSON 字符串数组，填写 URL、目录、主机名或缓存标签；全站刷新时省略
+    required: false
+    default: "[]"
+  flush_type:
+    description: 刷新类型，支持 file、directory、hostname、cachetag、ignoreParams、purgeall
+    required: false
+    default: file
+  method:
+    description: invalidate 仅刷新变更资源；delete 强制刷新全部目标资源；文件刷新不受此参数影响
+    required: false
+    default: invalidate
+  edge_compute_purge:
+    description: 是否刷新边缘函数 Cache API 写入的缓存
+    required: false
+    default: "false"
+  proxy:
+    description: API 请求代理，支持 http://、https:// 和 socks5://
+    required: false
+    default: ""
+
+outputs:
+  task_id:
+    description: 已提交的刷新任务 ID，不代表全网刷新已完成
+    value: ${{ steps.purge.outputs.task_id }}
+  request_id:
+    description: 阿里云 API 请求 ID
+    value: ${{ steps.purge.outputs.request_id }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-python@v5
+      with:
+        python-version: '3.13'
+
+    - name: Install ESA SDK and submit cache purge
+      id: purge
+      shell: bash
+      env:
+        ACCESS_KEY_ID: ${{ inputs.access_key_id }}
+        ACCESS_KEY_SECRET: ${{ inputs.access_key_secret }}
+        SECURITY_TOKEN: ${{ inputs.security_token }}
+        SITE_ID: ${{ inputs.site_id }}
+        REGION_ID: ${{ inputs.region_id }}
+        URL_TARGET: ${{ inputs.url_target }}
+        FLUSH_TYPE: ${{ inputs.flush_type }}
+        METHOD: ${{ inputs.method }}
+        EDGE_COMPUTE_PURGE: ${{ inputs.edge_compute_purge }}
+        PROXY: ${{ inputs.proxy }}
+      run: |
+        set -euo pipefail
+        venv_dir="$(mktemp -d "$RUNNER_TEMP/aliyun-esa-cache.XXXXXX")"
+        python -m venv "$venv_dir"
+        if [[ -f "$venv_dir/Scripts/python.exe" ]]; then
+          python_bin="$venv_dir/Scripts/python.exe"
+        else
+          python_bin="$venv_dir/bin/python"
+        fi
+        "$python_bin" -m pip install --quiet 'alibabacloud_esa20240910==3.15.2' 'requests[socks]'
+        "$python_bin" "$GITHUB_ACTION_PATH/aliyun-esa-cache.py" \
+          "$ACCESS_KEY_ID" \
+          "$ACCESS_KEY_SECRET" \
+          "$SITE_ID" \
+          "$URL_TARGET" \
+          "$FLUSH_TYPE" \
+          "$METHOD" \
+          "$REGION_ID" \
+          "$SECURITY_TOKEN" \
+          "$EDGE_COMPUTE_PURGE" \
+          "$PROXY"
