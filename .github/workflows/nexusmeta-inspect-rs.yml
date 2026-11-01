@@ -76,7 +76,7 @@ jobs:
       - name: Clone library over SSH
         env:
           SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
-          SOURCE_REF: ${{ inputs.source_ref }}
+          SOURCE_REF: ${{ inputs.source_ref || 'nexusmeta-inspect-rs' }}
         run: |
           set -euo pipefail
           test -n "$SSH_PRIVATE_KEY" || { echo 'Missing SSH_PRIVATE_KEY secret'; exit 1; }
@@ -170,7 +170,7 @@ jobs:
       - name: Download test JAR
         if: matrix.mode == 'run'
         env:
-          JAR_URL: ${{ inputs.jar_url }}
+          JAR_URL: ${{ inputs.jar_url || 'https://github.com/capitalistspz/SnowballKB/releases/download/1.6-26.3/snowballkb-1.6-26.3.jar' }}
         run: |
           set -euo pipefail
           curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \
