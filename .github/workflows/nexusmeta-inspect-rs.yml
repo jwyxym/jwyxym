@@ -130,7 +130,7 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $gcc = (Get-Command gcc -CommandType Application).Source
+          $gcc = (Get-Command gcc -CommandType Application | Select-Object -First 1).Source
           $machine = & $gcc -dumpmachine
           if ($LASTEXITCODE -ne 0 -or $machine -notmatch 'x86_64.*mingw') {
             throw "Expected x64 MinGW GCC, found: $machine"
@@ -150,6 +150,20 @@ jobs:
           echo "LIBCLANG_PATH=$(brew --prefix llvm@18)/lib" >> "$GITHUB_ENV"
           echo 'NEXUSMETA_GO_CC=/usr/bin/clang' >> "$GITHUB_ENV"
           echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot $(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+
+      - name: Set up Java for Android SDK tools
+        if: matrix.mode == 'check'
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK tools
+        if: matrix.mode == 'check'
+        uses: android-actions/setup-android@v3
+        with:
+          packages: ''
+          log-accepted-android-sdk-licenses: false
 
       - name: Configure Android NDK (API 21)
         if: matrix.mode == 'check'
