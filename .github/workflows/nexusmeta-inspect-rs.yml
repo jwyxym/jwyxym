@@ -32,6 +32,9 @@ jobs:
           - runner: windows-2022
             target: x86_64-pc-windows-msvc
             mode: run
+          - runner: windows-11-arm
+            target: aarch64-pc-windows-msvc
+            mode: run
           - runner: ubuntu-24.04
             target: x86_64-unknown-linux-gnu
             mode: run
@@ -125,22 +128,46 @@ jobs:
           echo 'LIBCLANG_PATH=/usr/lib/llvm-18/lib' >> "$GITHUB_ENV"
           echo 'NEXUSMETA_GO_CC=gcc' >> "$GITHUB_ENV"
 
+      - name: Install Windows ARM64 CGO compiler
+        if: matrix.target == 'aarch64-pc-windows-msvc'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = '20250709'
+          $package = "llvm-mingw-$version-ucrt-aarch64"
+          $archive = Join-Path $env:RUNNER_TEMP "$package.zip"
+          Invoke-WebRequest -Uri "https://github.com/mstorsjo/llvm-mingw/releases/download/$version/$package.zip" -OutFile $archive
+          Expand-Archive -LiteralPath $archive -DestinationPath $env:RUNNER_TEMP
+          $compiler = Join-Path $env:RUNNER_TEMP "$package/bin/aarch64-w64-mingw32-clang.exe"
+          if (-not (Test-Path -LiteralPath $compiler)) {
+            throw "ARM64 CGO compiler missing: $compiler"
+          }
+          "NEXUSMETA_GO_CC=$($compiler.Replace('\', '/'))" >> $env:GITHUB_ENV
+
       - name: Configure Windows C toolchain and libclang
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $gcc = (Get-Command gcc -CommandType Application | Select-Object -First 1).Source
-          $machine = & $gcc -dumpmachine
-          if ($LASTEXITCODE -ne 0 -or $machine -notmatch 'x86_64.*mingw') {
-            throw "Expected x64 MinGW GCC, found: $machine"
+          if ($env:RUST_TARGET -eq 'aarch64-pc-windows-msvc') {
+            $compiler = $env:NEXUSMETA_GO_CC
+            $expectedMachine = 'aarch64.*(mingw|windows-gnu)'
+          } else {
+            $compiler = (Get-Command gcc -CommandType Application | Select-Object -First 1).Source
+            $expectedMachine = 'x86_64.*mingw'
+          }
+          $machine = & $compiler -dumpmachine
+          if ($LASTEXITCODE -ne 0 -or $machine -notmatch $expectedMachine) {
+            throw "Expected $expectedMachine CGO compiler, found: $machine"
           }
           $libclang = 'C:/Program Files/LLVM/bin'
           if (-not (Test-Path -LiteralPath "$libclang/libclang.dll")) {
             throw "libclang.dll missing from $libclang"
           }
-          "NEXUSMETA_GO_CC=$($gcc.Replace('\', '/'))" >> $env:GITHUB_ENV
+          "NEXUSMETA_GO_CC=$($compiler.Replace('\', '/'))" >> $env:GITHUB_ENV
           "LIBCLANG_PATH=$libclang" >> $env:GITHUB_ENV
+        env:
+          RUST_TARGET: ${{ matrix.target }}
 
       - name: Configure macOS C toolchain and libclang
         if: runner.os == 'macOS'
