@@ -1,0 +1,7 @@
+[package]
+name = "test-xiao"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+nexusmeta-inspect-rs = { path = "../forum-web/packages/nexusmeta-inspect-rs"}

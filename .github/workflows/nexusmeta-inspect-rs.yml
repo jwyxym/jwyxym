@@ -1,0 +1,202 @@
+name: NexusMeta Inspect Rust
+
+on:
+  push:
+    branches:
+      - test
+  workflow_dispatch:
+    inputs:
+      source_ref:
+        description: forum-web branch to test (without tree/)
+        required: true
+        default: nexusmeta-inspect-rs
+        type: string
+      jar_url:
+        description: HTTPS URL of the test JAR
+        required: true
+        default: https://github.com/capitalistspz/SnowballKB/releases/download/1.6-26.3/snowballkb-1.6-26.3.jar
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  inspect:
+    name: ${{ matrix.target }} (${{ matrix.mode }})
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            target: x86_64-pc-windows-msvc
+            mode: run
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+            mode: run
+          - runner: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            mode: run
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+            mode: run
+          - runner: macos-15
+            target: aarch64-apple-darwin
+            mode: run
+          - runner: ubuntu-24.04
+            target: aarch64-linux-android
+            android_clang: aarch64-linux-android21
+            mode: check
+          - runner: ubuntu-24.04
+            target: armv7-linux-androideabi
+            android_clang: armv7a-linux-androideabi21
+            mode: check
+          - runner: ubuntu-24.04
+            target: x86_64-linux-android
+            android_clang: x86_64-linux-android21
+            mode: check
+          - runner: ubuntu-24.04
+            target: i686-linux-android
+            android_clang: i686-linux-android21
+            mode: check
+    defaults:
+      run:
+        shell: bash
+    env:
+      CARGO_TERM_COLOR: never
+      NDK_VERSION: 27.2.12479018
+
+    steps:
+      - name: Checkout test-xiao
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Clone library over SSH
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+          SOURCE_REF: ${{ inputs.source_ref }}
+        run: |
+          set -euo pipefail
+          test -n "$SSH_PRIVATE_KEY" || { echo 'Missing SSH_PRIVATE_KEY secret'; exit 1; }
+          ssh_dir="$(mktemp -d)"
+          trap 'rm -f "$ssh_dir/key" "$ssh_dir/known_hosts"; rmdir "$ssh_dir"' EXIT
+          chmod 700 "$ssh_dir"
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > "$ssh_dir/key"
+          chmod 600 "$ssh_dir/key"
+          ssh-keyscan -H github.com > "$ssh_dir/known_hosts"
+          export GIT_SSH_COMMAND="ssh -i '$ssh_dir/key' -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes -o UserKnownHostsFile='$ssh_dir/known_hosts'"
+          git clone --depth 1 --single-branch --branch "$SOURCE_REF" git@github.com:NexusMC-CN/forum-web.git forum-web
+          test -f forum-web/packages/nexusmeta-inspect-rs/Cargo.toml
+          test -f forum-web/packages/nexusmeta-inspect-go/go.mod
+          git -C forum-web rev-parse HEAD
+
+      - name: Configure test-xiao dependency path for CI
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $manifestPath = Join-Path $env:GITHUB_WORKSPACE 'test-xiao/Cargo.toml'
+          $manifest = [IO.File]::ReadAllText($manifestPath)
+          $pattern = '(?m)^nexusmeta-inspect-rs\s*=\s*\{[^\r\n]*\}'
+          if ([regex]::Matches($manifest, $pattern).Count -ne 1) {
+            throw 'Expected one inline nexusmeta-inspect-rs dependency in test-xiao/Cargo.toml'
+          }
+          $manifest = [regex]::Replace($manifest, $pattern, 'nexusmeta-inspect-rs = { path = "../forum-web/packages/nexusmeta-inspect-rs" }')
+          [IO.File]::WriteAllText($manifestPath, $manifest, [Text.UTF8Encoding]::new($false))
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.25.0'
+          cache: false
+
+      - name: Set up Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Install Linux C toolchain and libclang
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends build-essential clang-18 libclang-18-dev
+          echo 'LIBCLANG_PATH=/usr/lib/llvm-18/lib' >> "$GITHUB_ENV"
+          echo 'NEXUSMETA_GO_CC=gcc' >> "$GITHUB_ENV"
+
+      - name: Configure Windows C toolchain and libclang
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $gcc = (Get-Command gcc -CommandType Application).Source
+          $machine = & $gcc -dumpmachine
+          if ($LASTEXITCODE -ne 0 -or $machine -notmatch 'x86_64.*mingw') {
+            throw "Expected x64 MinGW GCC, found: $machine"
+          }
+          $libclang = 'C:/Program Files/LLVM/bin'
+          if (-not (Test-Path -LiteralPath "$libclang/libclang.dll")) {
+            throw "libclang.dll missing from $libclang"
+          }
+          "NEXUSMETA_GO_CC=$($gcc.Replace('\', '/'))" >> $env:GITHUB_ENV
+          "LIBCLANG_PATH=$libclang" >> $env:GITHUB_ENV
+
+      - name: Configure macOS C toolchain and libclang
+        if: runner.os == 'macOS'
+        run: |
+          set -euo pipefail
+          brew list --versions llvm@18 >/dev/null || brew install llvm@18
+          echo "LIBCLANG_PATH=$(brew --prefix llvm@18)/lib" >> "$GITHUB_ENV"
+          echo 'NEXUSMETA_GO_CC=/usr/bin/clang' >> "$GITHUB_ENV"
+          echo "BINDGEN_EXTRA_CLANG_ARGS=-isysroot $(xcrun --show-sdk-path)" >> "$GITHUB_ENV"
+
+      - name: Configure Android NDK (API 21)
+        if: matrix.mode == 'check'
+        env:
+          ANDROID_CLANG: ${{ matrix.android_clang }}
+          RUST_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          sdkmanager --install "ndk;$NDK_VERSION"
+          toolchain="$ANDROID_HOME/ndk/$NDK_VERSION/toolchains/llvm/prebuilt/linux-x86_64"
+          test -x "$toolchain/bin/$ANDROID_CLANG-clang"
+          echo "NEXUSMETA_GO_CC=$toolchain/bin/$ANDROID_CLANG-clang" >> "$GITHUB_ENV"
+          linker_var="CARGO_TARGET_$(printf '%s' "$RUST_TARGET" | tr '[:lower:]-' '[:upper:]_')_LINKER"
+          echo "$linker_var=$toolchain/bin/$ANDROID_CLANG-clang" >> "$GITHUB_ENV"
+          echo "BINDGEN_EXTRA_CLANG_ARGS=--sysroot=$toolchain/sysroot" >> "$GITHUB_ENV"
+          echo "NEXUSMETA_GO_SHARED_OUT=$RUNNER_TEMP/android-libs/$RUST_TARGET" >> "$GITHUB_ENV"
+
+      - name: Download test JAR
+        if: matrix.mode == 'run'
+        env:
+          JAR_URL: ${{ inputs.jar_url }}
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --connect-timeout 30 --max-time 300 \
+            --proto '=https' --proto-redir '=https' --output test-resource.jar "$JAR_URL"
+          test -s test-resource.jar
+
+      - name: Run JAR inspection
+        if: matrix.mode == 'run'
+        working-directory: test-xiao
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cargo run --locked --target "$RUST_TARGET" -- ../test-resource.jar | tee inspect-output.log
+          # A successful process exit alone does not prove that the JAR was recognized.
+          grep -Eq '解析状态：(complete|partial)' inspect-output.log
+          grep -Eq '组件数量：[1-9][0-9]*' inspect-output.log
+
+      - name: Check Android target and build Go shared library
+        if: matrix.mode == 'check'
+        working-directory: test-xiao
+        env:
+          RUST_TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          cargo check --locked --target "$RUST_TARGET"
+          test -s "$NEXUSMETA_GO_SHARED_OUT/libnexusmeta_go.so"
+          # cargo check verifies Rust types and runs build.rs (including Go c-shared).
+          # This does not link an Android executable or run it on a device.
